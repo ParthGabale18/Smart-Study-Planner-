@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Smart Study Planner</title>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- jsPDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: #0f172a;
+      color: white;
+      text-align: center;
+      padding: 20px;
+      transition: 0.3s;
+    }
+
+    .light {
+      background: #f1f5f9;
+      color: black;
+    }
+
+    h1 {
+      color: #38bdf8;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: auto;
+      background: #1e293b;
+      padding: 20px;
+      border-radius: 10px;
+    }
+
+    .light .container {
+      background: white;
+    }
+
+    input, select, button {
+      margin: 10px;
+      padding: 10px;
+      border-radius: 5px;
+      border: none;
+    }
+
+    button {
+      background: #38bdf8;
+      cursor: pointer;
+    }
+
+    .schedule {
+      margin-top: 20px;
+      text-align: left;
+      padding: 15px;
+      border-radius: 10px;
+    }
+
+    .day {
+      margin-top: 10px;
+      padding: 10px;
+      background: #1e293b;
+      border-radius: 8px;
+    }
+
+    .light .day {
+      background: #e2e8f0;
+    }
+  </style>
+</head>
+
+<body>
+
+<h1>🎓 Smart Study Planner</h1>
+
+<button onclick="toggleMode()">🌙 Toggle Mode</button>
+
+<div class="container">
+
+  <h2>Add Subject</h2>
+  <input id="subject" placeholder="Subject">
+  
+  <select id="difficulty">
+    <option value="1">Easy</option>
+    <option value="3">Medium</option>
+    <option value="5">Hard</option>
+  </select>
+
+  <input type="date" id="examDate">
+  <button onclick="addSubject()">Add</button>
+
+  <div id="subjectList"></div>
+
+  <h2>Daily Hours</h2>
+  <input type="number" id="hours" placeholder="e.g. 5">
+
+  <br>
+  <button onclick="generateSchedule()">Generate</button>
+  <button onclick="downloadPDF()">Download PDF</button>
+
+  <div id="schedule"></div>
+
+  <canvas id="chart"></canvas>
+
+</div>
+
+<script>
+let subjects = [];
+let chart;
+
+function toggleMode(){
+  document.body.classList.toggle("light");
+}
+
+function addSubject(){
+  const name = subject.value;
+  const difficulty = parseInt(document.getElementById("difficulty").value);
+  const exam = examDate.value;
+
+  subjects.push({name, difficulty, exam_date: exam});
+
+  subjectList.innerHTML = subjects.map(s =>
+    `<p>${s.name} | ${s.difficulty} | ${s.exam_date}</p>`
+  ).join("");
+}
+
+async function generateSchedule(){
+  const hours = parseInt(document.getElementById("hours").value);
+
+  schedule.innerHTML = "⏳ Loading...";
+
+  const res = await fetch("http://127.0.0.1:5000/generate", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({subjects, hours})
+  });
+
+  const data = await res.json();
+
+  let output = "";
+  let totals = {};
+
+  for(let day in data){
+    output += `<div class='day'><h4>${day}</h4>`;
+    data[day].forEach(i=>{
+      output += `<p>${i.subject} → ${i.hours}h (${i.reason})</p>`;
+      totals[i.subject]=(totals[i.subject]||0)+i.hours;
+    });
+    output += "</div>";
+  }
+
+  schedule.innerHTML = output;
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(document.getElementById("chart"), {
+    type:"bar",
+    data:{
+      labels:Object.keys(totals),
+      datasets:[{label:"Hours", data:Object.values(totals)}]
+    }
+  });
+}
+
+function downloadPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+
+  doc.text("Smart Study Plan", 10, 10);
+  doc.text(schedule.innerText, 10, 20);
+
+  doc.save("study-plan.pdf");
+}
+</script>
+
+</body>
+</html>
